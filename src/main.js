@@ -11,12 +11,63 @@ import { goTab, toast, updateCount, setLocDisplay, renderObsList } from './ui.js
 
 // ── App state ──────────────────────────────────────────────────────────────────
 
-let obs        = load();
-let selLat     = null;
-let selLon     = null;
-let selGeoMode = 'point';
-let selVertices = null;
-let selSpecies  = null;  // { id, no, sci, grp }
+let obs          = load();
+let selLat       = null;
+let selLon       = null;
+let selGeoMode   = 'point';
+let selVertices  = null;
+let stagedSpecies = [];  // [{ sp: {id,no,sci,grp}, antall, enhet }]
+
+const ENHET_OPTIONS = ['', 'Planter', 'Skudd/stilker/strå', 'Tuer',
+  'm2', 'dm2', 'cm2', 'Fruktlegemer', 'Mycel', 'Thalli', 'Kapsler'];
+
+function enhetSelectHtml(selected = '') {
+  return ENHET_OPTIONS
+    .map(v => `<option value="${v}"${v === selected ? ' selected' : ''}>${v || '—'}</option>`)
+    .join('');
+}
+
+function renderSpeciesList() {
+  const el  = document.getElementById('speciesList');
+  const btn = document.getElementById('submitBtn');
+  if (!stagedSpecies.length) {
+    el.style.display = 'none';
+    btn.textContent  = '✓ Registrer funn';
+    return;
+  }
+  el.style.display = 'block';
+  el.innerHTML = stagedSpecies.map((item, i) =>
+    `<div class="sp-item" data-idx="${i}">` +
+      `<div class="sp-item-info">` +
+        `<div class="sp-item-no">${item.sp.no}</div>` +
+        `<div class="sp-item-sci">${item.sp.sci}</div>` +
+      `</div>` +
+      `<input class="sp-item-antall" type="text" value="${item.antall}" ` +
+             `placeholder="Ant." inputmode="numeric" data-idx="${i}">` +
+      `<select class="sp-item-enhet" data-idx="${i}">${enhetSelectHtml(item.enhet)}</select>` +
+      `<button class="sp-item-del" data-idx="${i}" aria-label="Fjern">✕</button>` +
+    `</div>`
+  ).join('');
+  btn.textContent = `✓ Registrer ${stagedSpecies.length} funn`;
+
+  el.onclick = e => {
+    const del = e.target.closest('.sp-item-del');
+    if (!del) return;
+    syncStagedFromDom();
+    stagedSpecies.splice(parseInt(del.dataset.idx), 1);
+    renderSpeciesList();
+  };
+}
+
+function syncStagedFromDom() {
+  document.querySelectorAll('.sp-item').forEach(row => {
+    const i = parseInt(row.dataset.idx);
+    if (stagedSpecies[i]) {
+      stagedSpecies[i].antall = row.querySelector('.sp-item-antall').value;
+      stagedSpecies[i].enhet  = row.querySelector('.sp-item-enhet').value;
+    }
+  });
+}
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -205,17 +256,19 @@ function hideDropdown() {
 }
 
 async function pickSpecies(item) {
-  selSpecies    = { ...item };
-  spInput.value = `${item.no} — ${item.sci}`;
+  const entry = { sp: { ...item }, antall: '', enhet: '' };
+  stagedSpecies.push(entry);
+  spInput.value = '';
   hideDropdown();
-  spInput.blur();
+  renderSpeciesList();
 
   if (item.id > 0 && item.grp === null) {
     try {
       const detail = await fetchTaxonDetail(item.id);
-      if (selSpecies?.id === item.id) selSpecies = detail;
+      const idx = stagedSpecies.indexOf(entry);
+      if (idx >= 0) stagedSpecies[idx].sp = detail;
     } catch {
-      // Fall back to 'Andre' sheet on export
+      // Stays as grp: null → 'Andre' sheet on export
     }
   }
 }
@@ -232,12 +285,17 @@ function registerObs() {
   const locName = document.getElementById('locName').value.trim();
   if (!locName) { toast('⚠ Fyll inn lokalitetsnavn'); return; }
 
-  const spVal = spInput.value.trim();
-  if (!spVal)  { toast('⚠ Velg en art'); return; }
+  // Sync any inline edits back into state before reading
+  syncStagedFromDom();
 
-  const sp = selSpecies ?? { no: spVal, sci: '', grp: 'Andre' };
+  // Allow a free-text species if nothing has been staged via autocomplete
+  if (!stagedSpecies.length) {
+    const spVal = spInput.value.trim();
+    if (!spVal) { toast('⚠ Legg til minst én art'); return; }
+    stagedSpecies.push({ sp: { no: spVal, sci: '', grp: 'Andre' }, antall: '', enhet: '' });
+  }
 
-  // Build geometry and comment prefix
+  // Build shared geometry + comment prefix once
   let geom       = { mode: 'point' };
   let kommPrefix = '';
 
@@ -250,9 +308,9 @@ function registerObs() {
     geom       = { mode: 'line', vertices: selVertices };
     kommPrefix = `Linje ${lenM} m`;
   } else if (selGeoMode === 'polygon' && selVertices?.length >= 3) {
-    const { daa }   = calcArea(selVertices);
-    const density   = parseInt(document.getElementById('gridDensity').value);
-    const gid       = shortId();
+    const { daa }    = calcArea(selVertices);
+    const density    = parseInt(document.getElementById('gridDensity').value);
+    const gid        = shortId();
     const gridPoints = generateGrid(selVertices, density);
     geom       = { mode: 'polygon', vertices: selVertices, gridPoints, gid };
     kommPrefix = density
@@ -265,9 +323,7 @@ function registerObs() {
     ? (userKomm ? `${kommPrefix}. ${userKomm}` : kommPrefix)
     : userKomm;
 
-  const o = {
-    id:      Date.now(),
-    sp,
+  const shared = {
     locName,
     lat:     selLat,
     lon:     selLon,
@@ -275,8 +331,6 @@ function registerObs() {
     nin:     document.getElementById('ninSel').value,
     dFrom:   document.getElementById('dFrom').value,
     dTo:     document.getElementById('dTo').value || document.getElementById('dFrom').value,
-    antall:  document.getElementById('antall').value,
-    enhet:   document.getElementById('enhet').value,
     noyakt:  document.getElementById('noyakt').value,
     livs:    document.getElementById('livs').value,
     bestmet: document.getElementById('bestmet').value,
@@ -284,22 +338,28 @@ function registerObs() {
     usikker: document.getElementById('usikker').checked,
   };
 
-  obs.push(o);
+  const now = Date.now();
+  stagedSpecies.forEach(({ sp, antall, enhet }, i) => {
+    obs.push({ id: now + i, sp, antall, enhet, ...shared });
+  });
+
   if (!save(obs)) toast('⚠ Lagring feilet');
 
   renderObsGeometries(obs);
   clearActiveGeom();
   updateCount(obs.length);
+  const n       = stagedSpecies.length;
+  const firstName = stagedSpecies[0]?.sp.no ?? 'Funn';
   resetForm();
-  toast(`✓ ${o.sp.no} registrert!`);
+  toast(`✓ ${n === 1 ? firstName : `${n} funn`} registrert!`);
   goTab('lst', () => renderObsList(obs, { onDelete }));
 }
 
 function resetForm() {
-  ['spInput', 'locName', 'antall', 'komm'].forEach(id => {
+  ['spInput', 'locName', 'komm'].forEach(id => {
     document.getElementById(id).value = '';
   });
-  ['ninSel', 'enhet', 'livs', 'bestmet'].forEach(id => {
+  ['ninSel', 'livs', 'bestmet'].forEach(id => {
     document.getElementById(id).value = '';
   });
   document.getElementById('usikker').checked = false;
@@ -308,7 +368,8 @@ function resetForm() {
   document.getElementById('coordDisplay').style.display = 'none';
   document.getElementById('mapOverlay').classList.remove('hidden');
 
-  selSpecies  = null;
+  stagedSpecies = [];
+  renderSpeciesList();
   selLat      = null;
   selLon      = null;
   selVertices = null;

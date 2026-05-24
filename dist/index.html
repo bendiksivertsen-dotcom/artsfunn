@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="theme-color" content="#2d7d46"/>
   <title>Artsfunn</title>
-  <script type="module" crossorigin src="/assets/index-w_OsMkgu.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-BHkib_od.css">
+  <script type="module" crossorigin src="/assets/index-DlLpcPLO.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BbfVQvBg.css">
 <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
 <body>
 <div id="app">
@@ -91,10 +91,12 @@
       <div class="field ac-wrap">
         <label>Art <span class="req">*</span></label>
         <input type="text" id="spInput"
-               placeholder="Søk norsk eller latinsk navn…"
+               placeholder="Søk og legg til art…"
                autocomplete="off" autocorrect="off" autocapitalize="off"/>
         <div class="ac-drop" id="acDrop"></div>
       </div>
+
+      <div id="speciesList" class="species-list" style="display:none"></div>
 
       <div class="field">
         <label>NiN 3.0 naturtype</label>
@@ -145,29 +147,6 @@
         <div class="field">
           <label>Til dato</label>
           <input type="date" id="dTo"/>
-        </div>
-      </div>
-
-      <div class="row2">
-        <div class="field">
-          <label>Antall</label>
-          <input type="text" id="antall" placeholder="f.eks. 3" inputmode="numeric"/>
-        </div>
-        <div class="field">
-          <label>Enhet</label>
-          <select id="enhet">
-            <option value="">—</option>
-            <option>Planter</option>
-            <option>Skudd/stilker/strå</option>
-            <option>Tuer</option>
-            <option>m2</option>
-            <option>dm2</option>
-            <option>cm2</option>
-            <option>Fruktlegemer</option>
-            <option>Mycel</option>
-            <option>Thalli</option>
-            <option>Kapsler</option>
-          </select>
         </div>
       </div>
 
