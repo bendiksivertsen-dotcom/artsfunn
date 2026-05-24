@@ -5,7 +5,10 @@ import {
   initMap, placeActivePin, placeActiveCircle, updateCircleRadius,
   clearActiveGeom, renderObsGeometries, panTo, invalidateSize,
 } from './map.js';
-import { calcLength, calcArea, generateGrid, shortId } from './geometry.js';
+import {
+  calcLength, calcArea, centroid, shortId,
+  generateLinePoints, generatePolygonPoints, generateCirclePoints,
+} from './geometry.js';
 import { exportAP2, exportCSV } from './export.js';
 import { goTab, toast, updateCount, setLocDisplay, renderObsList } from './ui.js';
 
@@ -88,13 +91,47 @@ renderObsGeometries(obs);
 function onMapModeChange(mode) {
   selGeoMode  = mode;
   selVertices = null;
-  // Hide mode-specific fields when switching modes (they'll show again on pick)
-  setGeoFieldsVisible(mode, false);
+  // Show density fields immediately for all non-point modes
+  setGeoFieldsVisible(mode, mode !== 'point');
+  updatePointCounts();
 }
 
+const MAX_POINTS = 5000;
+
 function setGeoFieldsVisible(mode, visible) {
+  document.getElementById('lineFields').style.display    = visible && mode === 'line'    ? 'block' : 'none';
   document.getElementById('circleFields').style.display  = visible && mode === 'circle'  ? 'block' : 'none';
   document.getElementById('polygonFields').style.display = visible && mode === 'polygon' ? 'block' : 'none';
+}
+
+function countLinePoints() {
+  if (!selVertices || selVertices.length < 2) return null;
+  const d = parseFloat(document.getElementById('lineDensity').value);
+  return Math.max(1, Math.round(d * calcLength(selVertices)));
+}
+
+function countAreaPoints(mode) {
+  const d = parseFloat(document.getElementById(mode === 'circle' ? 'circleDensity' : 'polygonDensity').value);
+  if (!d) return 1;
+  if (mode === 'circle') {
+    const r = parseInt(document.getElementById('circleRadius').value);
+    return Math.max(1, Math.round(d * Math.PI * r * r));
+  }
+  if (!selVertices || selVertices.length < 3) return null;
+  return Math.max(1, Math.round(d * calcArea(selVertices).sqm));
+}
+
+function updatePointCounts() {
+  const fmt = n => n != null ? `→ ${n.toLocaleString('nb')} punkt${n !== 1 ? 'er' : ''}` : '';
+
+  const lineEl = document.getElementById('linePointCount');
+  if (lineEl) lineEl.textContent = selGeoMode === 'line' ? (fmt(countLinePoints()) || 'Tegn linje på kartet') : '';
+
+  const circleEl = document.getElementById('circlePointCount');
+  if (circleEl) circleEl.textContent = selGeoMode === 'circle' ? fmt(countAreaPoints('circle')) : '';
+
+  const polyEl = document.getElementById('polygonPointCount');
+  if (polyEl) polyEl.textContent = selGeoMode === 'polygon' ? (fmt(countAreaPoints('polygon')) || 'Tegn polygon på kartet') : '';
 }
 
 function setActivePos(geoData) {
@@ -124,7 +161,8 @@ function setActivePos(geoData) {
   document.getElementById('coordDisplay').style.display  = 'block';
   document.getElementById('coordDisplay').textContent    = dispText;
 
-  setGeoFieldsVisible(mode, true);
+  setGeoFieldsVisible(mode, mode !== 'point');
+  updatePointCounts();
 }
 
 // ── Circle radius slider ───────────────────────────────────────────────────────
@@ -140,6 +178,11 @@ circleRadiusEl.addEventListener('input', () => {
     document.getElementById('coordDisplay').textContent =
       `lat: ${selLat.toFixed(5)}  lon: ${selLon.toFixed(5)}  r: ${r} m`;
   }
+  updatePointCounts();
+});
+
+['lineDensity', 'circleDensity', 'polygonDensity'].forEach(id => {
+  document.getElementById(id).addEventListener('change', updatePointCounts);
 });
 
 // ── GPS ────────────────────────────────────────────────────────────────────────
@@ -300,22 +343,33 @@ function registerObs() {
   let kommPrefix = '';
 
   if (selGeoMode === 'circle' && selLat !== null) {
-    const r = parseInt(circleRadiusEl.value);
-    geom       = { mode: 'circle', radiusM: r };
-    kommPrefix = `r=${r} m`;
+    const r       = parseInt(circleRadiusEl.value);
+    const density = parseFloat(document.getElementById('circleDensity').value);
+    const pts     = density > 0
+      ? generateCirclePoints(selLat, selLon, r, Math.min(density, MAX_POINTS / (Math.PI * r * r)))
+      : [[selLat, selLon]];
+    if (pts.length > MAX_POINTS) pts.splice(MAX_POINTS);
+    geom       = { mode: 'circle', radiusM: r, gridPoints: pts };
+    kommPrefix = `Sirkel r=${r} m, ${pts.length} punkt${pts.length !== 1 ? 'er' : ''}`;
+
   } else if (selGeoMode === 'line' && selVertices?.length >= 2) {
-    const lenM = calcLength(selVertices);
-    geom       = { mode: 'line', vertices: selVertices };
-    kommPrefix = `Linje ${lenM} m`;
+    const lenM    = calcLength(selVertices);
+    const density = parseFloat(document.getElementById('lineDensity').value);
+    const pts     = generateLinePoints(selVertices, Math.min(density, MAX_POINTS / lenM));
+    if (pts.length > MAX_POINTS) pts.splice(MAX_POINTS);
+    geom       = { mode: 'line', vertices: selVertices, linePoints: pts };
+    kommPrefix = `Linje ${lenM} m, ${pts.length} punkt${pts.length !== 1 ? 'er' : ''}`;
+
   } else if (selGeoMode === 'polygon' && selVertices?.length >= 3) {
-    const { daa }    = calcArea(selVertices);
-    const density    = parseInt(document.getElementById('gridDensity').value);
-    const gid        = shortId();
-    const gridPoints = generateGrid(selVertices, density);
-    geom       = { mode: 'polygon', vertices: selVertices, gridPoints, gid };
-    kommPrefix = density
-      ? `Grid ${density}×${density} m, ${daa} daa, polygon-ID ${gid}`
-      : `${daa} daa, polygon-ID ${gid}`;
+    const { daa, sqm } = calcArea(selVertices);
+    const density      = parseFloat(document.getElementById('polygonDensity').value);
+    const gid          = shortId();
+    const pts          = density > 0
+      ? generatePolygonPoints(selVertices, Math.min(density, MAX_POINTS / sqm))
+      : [centroid(selVertices)];
+    if (pts.length > MAX_POINTS) pts.splice(MAX_POINTS);
+    geom       = { mode: 'polygon', vertices: selVertices, gridPoints: pts, gid };
+    kommPrefix = `Polygon ${daa} daa, ${pts.length} punkt${pts.length !== 1 ? 'er' : ''}, ID ${gid}`;
   }
 
   const userKomm = document.getElementById('komm').value;
@@ -373,7 +427,8 @@ function resetForm() {
   selLat      = null;
   selLon      = null;
   selVertices = null;
-  setGeoFieldsVisible(selGeoMode, false);
+  setGeoFieldsVisible(selGeoMode, selGeoMode !== 'point');
+  updatePointCounts();
 }
 
 // ── Observations list ──────────────────────────────────────────────────────────

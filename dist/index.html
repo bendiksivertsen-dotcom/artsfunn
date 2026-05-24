@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="theme-color" content="#2d7d46"/>
   <title>Artsfunn</title>
-  <script type="module" crossorigin src="/assets/index-BaDMPQBr.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-BbfVQvBg.css">
+  <script type="module" crossorigin src="/assets/index-07ohMp4y.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-C1fjYDm7.css">
 <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
 <body>
 <div id="app">
@@ -61,26 +61,71 @@
         <div class="loc-display" id="locDisplay">Ikke valgt – bruk GPS eller klikk på kartet</div>
       </div>
 
-      <!-- Circle radius slider — visible only in circle mode -->
-      <div class="field" id="circleFields" style="display:none">
-        <label>Sirkelradius</label>
-        <div class="slider-wrap">
-          <input type="range" id="circleRadius" min="10" max="5000" value="100" step="10"/>
-          <span id="circleRadiusVal">100 m</span>
+      <!-- Line density — visible in line mode -->
+      <div id="lineFields" style="display:none">
+        <div class="field">
+          <label>Tetthet langs linja</label>
+          <div class="density-row">
+            <select id="lineDensity">
+              <option value="0.01">1 per 100 m</option>
+              <option value="0.02">1 per 50 m</option>
+              <option value="0.04">1 per 25 m</option>
+              <option value="0.1" selected>1 per 10 m</option>
+              <option value="0.2">1 per 5 m</option>
+              <option value="0.5">1 per 2 m</option>
+              <option value="1">1 per m</option>
+              <option value="2">2 per m</option>
+            </select>
+            <span class="point-count" id="linePointCount"></span>
+          </div>
         </div>
       </div>
 
-      <!-- Grid density — visible only in polygon mode -->
-      <div class="field" id="polygonFields" style="display:none">
-        <label>Rutenett-tetthet</label>
-        <select id="gridDensity">
-          <option value="0">Sentroid (ett punkt)</option>
-          <option value="5">5 × 5 m</option>
-          <option value="10">10 × 10 m</option>
-          <option value="25" selected>25 × 25 m</option>
-          <option value="50">50 × 50 m</option>
-          <option value="100">100 × 100 m</option>
-        </select>
+      <!-- Circle radius + density — visible in circle mode -->
+      <div id="circleFields" style="display:none">
+        <div class="field">
+          <label>Sirkelradius</label>
+          <div class="slider-wrap">
+            <input type="range" id="circleRadius" min="10" max="5000" value="100" step="10"/>
+            <span id="circleRadiusVal">100 m</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Tetthet i sirkel</label>
+          <div class="density-row">
+            <select id="circleDensity">
+              <option value="0">0 – sentroid</option>
+              <option value="0.01">1 per 100 m²</option>
+              <option value="0.04">1 per 25 m²</option>
+              <option value="0.1" selected>1 per 10 m²</option>
+              <option value="0.2">1 per 5 m²</option>
+              <option value="1">1 per m²</option>
+              <option value="2">2 per m²</option>
+              <option value="3">3 per m²</option>
+            </select>
+            <span class="point-count" id="circlePointCount"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Polygon density — visible in polygon mode -->
+      <div id="polygonFields" style="display:none">
+        <div class="field">
+          <label>Tetthet i polygon</label>
+          <div class="density-row">
+            <select id="polygonDensity">
+              <option value="0">0 – sentroid</option>
+              <option value="0.01">1 per 100 m²</option>
+              <option value="0.04">1 per 25 m²</option>
+              <option value="0.1" selected>1 per 10 m²</option>
+              <option value="0.2">1 per 5 m²</option>
+              <option value="1">1 per m²</option>
+              <option value="2">2 per m²</option>
+              <option value="3">3 per m²</option>
+            </select>
+            <span class="point-count" id="polygonPointCount"></span>
+          </div>
+        </div>
       </div>
 
       <div class="field">

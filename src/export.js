@@ -87,12 +87,17 @@ function baseRow(o, cols, lat, lon) {
  */
 function buildRows(o, cols) {
   const geom = o.geom || { mode: 'point' };
-  if (geom.mode === 'line' && geom.vertices?.length) {
-    return geom.vertices.map(([lat, lon]) => baseRow(o, cols, lat, lon));
+
+  if (geom.mode === 'line') {
+    // linePoints: density-spaced points (new); vertices: fallback for old obs
+    const pts = geom.linePoints ?? geom.vertices;
+    if (pts?.length) return pts.map(([lat, lon]) => baseRow(o, cols, lat, lon));
   }
-  if (geom.mode === 'polygon' && geom.gridPoints?.length) {
+
+  if ((geom.mode === 'polygon' || geom.mode === 'circle') && geom.gridPoints?.length) {
     return geom.gridPoints.map(([lat, lon]) => baseRow(o, cols, lat, lon));
   }
+
   return [baseRow(o, cols, o.lat, o.lon)];
 }
 

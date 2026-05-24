@@ -475,6 +475,42 @@ header h1 { font-size: 18px; font-weight: 600; flex: 1; }
 .map-tool-btn.cancel:active { background: var(--danger-bg); }
 .map-tool-btn.hidden { display: none; }
 
+/* ── Density selector row ───────────────────────────────────────────────────── */
+
+.density-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.density-row select {
+  flex: 1;
+  padding: 11px 36px 11px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-family: inherit;
+  background: white;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+.density-row select:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(45,125,70,.12);
+}
+.point-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--green);
+  white-space: nowrap;
+  min-width: 90px;
+  text-align: right;
+  font-family: monospace;
+}
+
 /* ── Radius slider ──────────────────────────────────────────────────────────── */
 
 .slider-wrap {
