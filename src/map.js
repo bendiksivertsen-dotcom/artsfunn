@@ -1,7 +1,8 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-const WMS_URL = 'https://opencache.statkart.no/gatekeeper/gk/cache.aspx';
+// Kartverket WMTS (XYZ-compatible). Path order is z/row/col, so Leaflet template uses {z}/{y}/{x}.
+const TILE_URL = 'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png';
 
 let map              = null;
 let obsLayer         = null;
@@ -224,11 +225,7 @@ export function initMap(containerId, callbacks) {
     doubleClickZoom: false,
   });
 
-  L.tileLayer.wms(WMS_URL, {
-    layers:      'topo4',
-    format:      'image/png',
-    transparent: false,
-    version:     '1.1.1',
+  L.tileLayer(TILE_URL, {
     maxZoom:     18,
     crossOrigin: 'anonymous',
     attribution: '&copy; <a href="https://kartverket.no">Kartverket</a>',

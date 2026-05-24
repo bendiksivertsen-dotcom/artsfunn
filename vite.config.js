@@ -15,11 +15,10 @@ export default defineConfig({
 
         runtimeCaching: [
           {
-            // Kartverket WMS tiles — cache-first so the map works offline.
-            // crossOrigin is set on the Leaflet layer so the SW receives
-            // CORS-enabled responses (status 200). The status:0 fallback
-            // covers the rare case the server omits CORS headers.
-            urlPattern: /^https:\/\/opencache\.statkart\.no\//,
+            // Kartverket WMTS tiles — cache-first so the map works offline.
+            // crossOrigin: 'anonymous' on the Leaflet layer ensures the SW
+            // receives CORS-enabled (non-opaque) status-200 responses.
+            urlPattern: /^https:\/\/cache\.kartverket\.no\//,
             handler: 'CacheFirst',
             options: {
               cacheName: 'kartverket-tiles-v1',
