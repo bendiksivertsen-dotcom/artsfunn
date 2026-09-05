@@ -105,7 +105,7 @@ function renderNinOptions(types) {
 renderNinOptions(NIN_SEED);
 loadNinTypes()
   .then(renderNinOptions)
-  .catch(() => { /* offline eller API utilgjengelig — beholder den innebygde lista */ });
+  .catch(err => console.warn('Klarte ikke å hente NiN-typer, beholder innebygd liste:', err));
 
 // ── Map ────────────────────────────────────────────────────────────────────────
 

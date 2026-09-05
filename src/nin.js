@@ -4,12 +4,24 @@ const NIN_API   = 'https://nin-kode-api.artsdatabanken.no/v3.0/typer/allekoder';
 const CACHE_KEY = 'artsfunn_nin_m020_v1';
 const CACHE_TTL = 30 * 86_400_000; // 30 days — the typesystem changes rarely
 
+// ASP.NET Core's default MVC JSON options camelCase every property (Typer →
+// typer, MaalestokkEnum → maalestokkEnum, …), but that's a framework default
+// rather than something declared in the DTOs themselves — so read fields
+// defensively under both casings in case that ever changes server-side.
+function field(obj, name) {
+  if (!obj) return undefined;
+  const lower = name[0].toLowerCase() + name.slice(1);
+  return obj[lower] ?? obj[name];
+}
+
 // MaalestokkEnum for kartleggingsenheter tilpasset 1:20 000 ("M020" as an
-// enum name, or its zero-based ordinal 2, depending on JSON serialization).
+// enum name — serialized as a string via JsonStringEnumConverter — or its
+// zero-based ordinal 2 if that converter is ever removed).
 function isM020(ke) {
-  const v = ke.MaalestokkEnum;
+  const v = field(ke, 'MaalestokkEnum');
   if (v === 'M020' || v === 2) return true;
-  return typeof ke.MaalestokkNavn === 'string' && ke.MaalestokkNavn.includes('20 000');
+  const navn = field(ke, 'MaalestokkNavn');
+  return typeof navn === 'string' && navn.includes('20 000');
 }
 
 // Small built-in offline fallback (a handful of common NiN 2.0-style types)
@@ -45,15 +57,24 @@ function cacheSet(val) {
 }
 
 /** Flatten the full NiN tree down to { code, name, group } for M020 units. */
-function extractM020(versjoner) {
+function extractM020(data) {
+  // GetAllAsync returns a single VersjonDto for "3.0", not an array of them —
+  // but normalize just in case the API ever wraps it in one.
+  const versjoner = Array.isArray(data) ? data : [data];
+
   const out = [];
-  for (const versjon of versjoner ?? []) {
-    for (const type of versjon.Typer ?? []) {
-      for (const htg of type.Hovedtypegrupper ?? []) {
-        for (const ht of htg.Hovedtyper ?? []) {
-          for (const ke of ht.Kartleggingsenheter ?? []) {
+  for (const versjon of versjoner) {
+    for (const type of field(versjon, 'Typer') ?? []) {
+      for (const htg of field(type, 'Hovedtypegrupper') ?? []) {
+        for (const ht of field(htg, 'Hovedtyper') ?? []) {
+          for (const ke of field(ht, 'Kartleggingsenheter') ?? []) {
             if (!isM020(ke)) continue;
-            out.push({ code: ke.Kode?.Id ?? '', name: ke.Navn ?? '', group: htg.Navn ?? ht.Navn ?? '' });
+            const kode = field(ke, 'Kode');
+            out.push({
+              code:  field(kode, 'Id') ?? '',
+              name:  field(ke, 'Navn') ?? '',
+              group: field(htg, 'Navn') ?? field(ht, 'Navn') ?? '',
+            });
           }
         }
       }
