@@ -1,4 +1,5 @@
 import { fmtDate } from './export.js';
+import { getAllPhotos } from './photos.js';
 
 const TABS = ['reg', 'lst', 'exp'];
 
@@ -29,8 +30,14 @@ export function setLocDisplay(lat, lon) {
   el.className = 'loc-display ok';
 }
 
+let photoObjectUrls = [];
+
 export function renderObsList(obs, { onDelete }) {
   const el = document.getElementById('obsList');
+
+  // Revoke URLs from the previous render before replacing the DOM
+  photoObjectUrls.forEach(u => URL.revokeObjectURL(u));
+  photoObjectUrls = [];
 
   if (!obs.length) {
     el.innerHTML =
@@ -50,8 +57,33 @@ export function renderObsList(obs, { onDelete }) {
   // Replace handler each render (innerHTML swap removes old child listeners)
   el.onclick = e => {
     const btn = e.target.closest('.del-btn');
-    if (btn) onDelete(Number(btn.dataset.id));
+    if (btn) { onDelete(Number(btn.dataset.id)); return; }
+    const img = e.target.closest('.obs-photos img');
+    if (img) window.open(img.src, '_blank');
   };
+
+  hydratePhotos(el);
+}
+
+async function hydratePhotos(el) {
+  const containers = [...el.querySelectorAll('.obs-photos[data-group]')];
+  if (!containers.length) return;
+
+  let allPhotos;
+  try { allPhotos = await getAllPhotos(); } catch { return; }
+
+  const byGroup = {};
+  allPhotos.forEach(p => (byGroup[p.groupId] ??= []).push(p));
+
+  containers.forEach(c => {
+    const photos = byGroup[c.dataset.group];
+    if (!photos?.length) return;
+    c.innerHTML = photos.map(p => {
+      const url = URL.createObjectURL(p.blob);
+      photoObjectUrls.push(url);
+      return `<img src="${url}" loading="lazy" alt="Bilde av funn"/>`;
+    }).join('');
+  });
 }
 
 function obsCardHTML(o) {
@@ -75,5 +107,6 @@ function obsCardHTML(o) {
       <div class="obs-card-meta">📅 ${fmtDate(o.dFrom)} · ${o.lat.toFixed(4)}° N, ${o.lon.toFixed(4)}° Ø${o.antall ? ` · ×${o.antall}` : ''}</div>
       ${tags ? `<div class="obs-tags">${tags}</div>` : ''}
       ${excerpt}
+      ${o.photoGroupId ? `<div class="obs-photos" data-group="${o.photoGroupId}"></div>` : ''}
     </div>`;
 }

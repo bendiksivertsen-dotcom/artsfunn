@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { getAllPhotos } from './photos.js';
 
 export function fmtDate(iso) {
   if (!iso) return '';
@@ -183,5 +184,58 @@ export function exportCSV(obs) {
   a.href = `data:text/csv;charset=utf-8,﻿${encodeURIComponent(csv)}`;
   a.download = `artsfunn_${today()}.csv`;
   a.click();
+  return true;
+}
+
+function safeName(s) {
+  return String(s || '').trim().replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 40) || 'ukjent';
+}
+
+/**
+ * Bundles every attached photo into a ZIP, one folder per observation, plus
+ * a manifest.csv mapping filenames back to species/locality/date so photos
+ * can be matched up when attaching them manually on artsobservasjoner.no.
+ * Returns false when there is nothing to export.
+ */
+export async function exportPhotosZip(obs) {
+  const withPhotos = obs.filter(o => o.photoGroupId);
+  if (!withPhotos.length) return false;
+
+  const allPhotos = await getAllPhotos();
+  if (!allPhotos.length) return false;
+
+  const { default: JSZip } = await import('jszip');
+  const byGroup = {};
+  allPhotos.forEach(p => (byGroup[p.groupId] ??= []).push(p));
+
+  const zip = new JSZip();
+  const manifest = [['Filnavn', 'Art', 'Vitenskapelig', 'Lokalitetsnavn', 'Dato', 'Nord', 'Øst']];
+  let added = 0;
+
+  withPhotos.forEach(o => {
+    const photos = byGroup[o.photoGroupId];
+    if (!photos?.length) return;
+    const folder = `${safeName(o.sp.no)}_${o.dFrom}_${o.id}`;
+    photos.forEach((p, i) => {
+      const filename = `${folder}/foto_${i + 1}.jpg`;
+      zip.file(filename, p.blob);
+      manifest.push([filename, o.sp.no, o.sp.sci, o.locName, fmtDate(o.dFrom), o.lat, o.lon]);
+      added++;
+    });
+  });
+
+  if (!added) return false;
+
+  const manifestCsv = manifest
+    .map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  zip.file('manifest.csv', '﻿' + manifestCsv);
+
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `artsfunn_bilder_${today()}.zip`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
   return true;
 }
