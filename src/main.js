@@ -9,8 +9,9 @@ import {
   calcLength, calcArea, centroid, shortId,
   generateLinePoints, generatePolygonPoints, generateCirclePoints,
 } from './geometry.js';
-import { exportAP2, exportCSV } from './export.js';
+import { exportAP2, exportCSV, exportPhotosZip } from './export.js';
 import { goTab, toast, updateCount, setLocDisplay, renderObsList } from './ui.js';
+import { compressImage, addPhoto, deletePhotosForGroup, clearAllPhotos } from './photos.js';
 
 // ── App state ──────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,7 @@ let selLon       = null;
 let selGeoMode   = 'point';
 let selVertices  = null;
 let stagedSpecies = [];  // [{ sp: {id,no,sci,grp}, antall, enhet }]
+let stagedPhotos  = [];  // [{ blob, url }] — attached to every obs from this submission
 
 const ENHET_OPTIONS = ['', 'Planter', 'Skudd/stilker/strå', 'Tuer',
   'm2', 'dm2', 'cm2', 'Fruktlegemer', 'Mycel', 'Thalli', 'Kapsler'];
@@ -316,11 +318,56 @@ async function pickSpecies(item) {
   }
 }
 
+// ── Photos ─────────────────────────────────────────────────────────────────────
+
+const photoInput  = document.getElementById('photoInput');
+const photoStrip  = document.getElementById('photoStrip');
+
+document.getElementById('photoAddBtn').addEventListener('click', () => photoInput.click());
+
+photoInput.addEventListener('change', async () => {
+  const files = [...photoInput.files];
+  photoInput.value = '';
+  for (const file of files) {
+    try {
+      const blob = await compressImage(file);
+      stagedPhotos.push({ blob, url: URL.createObjectURL(blob) });
+    } catch {
+      toast('⚠ Kunne ikke lese bildet');
+    }
+  }
+  renderPhotoStrip();
+});
+
+function renderPhotoStrip() {
+  photoStrip.innerHTML = stagedPhotos.map((p, i) =>
+    `<div class="photo-thumb" data-idx="${i}">` +
+      `<img src="${p.url}" alt="Nytt bilde"/>` +
+      `<button type="button" class="photo-thumb-del" data-idx="${i}" aria-label="Fjern bilde">✕</button>` +
+    `</div>`
+  ).join('');
+}
+
+photoStrip.addEventListener('click', e => {
+  const btn = e.target.closest('.photo-thumb-del');
+  if (!btn) return;
+  const i = parseInt(btn.dataset.idx);
+  URL.revokeObjectURL(stagedPhotos[i].url);
+  stagedPhotos.splice(i, 1);
+  renderPhotoStrip();
+});
+
+function clearStagedPhotos() {
+  stagedPhotos.forEach(p => URL.revokeObjectURL(p.url));
+  stagedPhotos = [];
+  renderPhotoStrip();
+}
+
 // ── Register observation ───────────────────────────────────────────────────────
 
 document.getElementById('submitBtn').addEventListener('click', registerObs);
 
-function registerObs() {
+async function registerObs() {
   if (!selLat) {
     toast('⚠ Velg posisjon med GPS eller klikk på kartet');
     return;
@@ -393,11 +440,20 @@ function registerObs() {
   };
 
   const now = Date.now();
+  const photoGroupId = stagedPhotos.length ? String(now) : null;
   stagedSpecies.forEach(({ sp, antall, enhet }, i) => {
-    obs.push({ id: now + i, sp, antall, enhet, ...shared });
+    obs.push({ id: now + i, sp, antall, enhet, photoGroupId, ...shared });
   });
 
   if (!save(obs)) toast('⚠ Lagring feilet');
+
+  if (photoGroupId) {
+    try {
+      await Promise.all(stagedPhotos.map(p => addPhoto(photoGroupId, p.blob)));
+    } catch {
+      toast('⚠ Kunne ikke lagre bilder lokalt');
+    }
+  }
 
   renderObsGeometries(obs);
   clearActiveGeom();
@@ -424,6 +480,7 @@ function resetForm() {
 
   stagedSpecies = [];
   renderSpeciesList();
+  clearStagedPhotos();
   selLat      = null;
   selLon      = null;
   selVertices = null;
@@ -435,10 +492,16 @@ function resetForm() {
 
 function onDelete(id) {
   if (!confirm('Slette dette funnet?')) return;
+  const deleted = obs.find(o => o.id === id);
   obs = remove(obs, id);
   renderObsGeometries(obs);
   updateCount(obs.length);
   renderObsList(obs, { onDelete });
+
+  // Only drop the photos once no remaining obs still references that group
+  if (deleted?.photoGroupId && !obs.some(o => o.photoGroupId === deleted.photoGroupId)) {
+    deletePhotosForGroup(deleted.photoGroupId).catch(() => {});
+  }
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
@@ -467,10 +530,17 @@ document.getElementById('btnCSV').addEventListener('click', () => {
   else toast('CSV lastet ned!');
 });
 
+document.getElementById('btnPhotosZip').addEventListener('click', async () => {
+  const result = await exportPhotosZip(obs).catch(() => false);
+  if (!result) toast('Ingen bilder å eksportere');
+  else toast('ZIP lastet ned!');
+});
+
 document.getElementById('btnClearAll').addEventListener('click', () => {
   if (!obs.length) return;
   if (!confirm(`Slette ALLE ${obs.length} registrerte funn? Dette kan ikke angres.`)) return;
   obs = clear();
+  clearAllPhotos().catch(() => {});
   renderObsGeometries(obs);
   updateCount(0);
   renderObsList(obs, { onDelete });

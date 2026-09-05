@@ -14,6 +14,7 @@
     "@turf/boolean-point-in-polygon": "^7.1.0",
     "@turf/helpers": "^7.1.0",
     "@turf/length": "^7.1.0",
+    "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
     "xlsx": "^0.18.5"
   },
