@@ -2,6 +2,9 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // Served from https://<user>.github.io/artsfunn/ (a project page, not a
+  // custom domain), so every asset/manifest URL needs this subpath prefix.
+  base: '/artsfunn/',
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
@@ -43,8 +46,8 @@ export default defineConfig({
         background_color: '#f7f9f7',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
+        scope: '/artsfunn/',
+        start_url: '/artsfunn/',
         categories: ['productivity', 'utilities'],
         icons: [
           {
