@@ -12,6 +12,7 @@ import {
 import { exportAP2, exportCSV, exportPhotosZip } from './export.js';
 import { goTab, toast, updateCount, setLocDisplay, renderObsList } from './ui.js';
 import { compressImage, addPhoto, deletePhotosForGroup, clearAllPhotos } from './photos.js';
+import { loadNinTypes, SEED as NIN_SEED } from './nin.js';
 
 // ── App state ──────────────────────────────────────────────────────────────────
 
@@ -81,6 +82,30 @@ const today = new Date().toISOString().slice(0, 10);
 updateCount(obs.length);
 document.getElementById('dFrom').value = today;
 document.getElementById('dTo').value   = today;
+
+// ── NiN 3.0 naturtyper (1:20 000) ────────────────────────────────────────────────
+
+function renderNinOptions(types) {
+  const sel = document.getElementById('ninSel');
+  const prevValue = sel.value;
+
+  const groups = {};
+  types.forEach(t => (groups[t.group] ??= []).push(t));
+
+  sel.innerHTML = '<option value="">— Velg naturtype —</option>' +
+    Object.entries(groups).map(([group, items]) =>
+      `<optgroup label="${group}">` +
+      items.map(t => `<option value="${t.code}">${t.code} ${t.name}</option>`).join('') +
+      `</optgroup>`
+    ).join('');
+
+  if ([...sel.options].some(o => o.value === prevValue)) sel.value = prevValue;
+}
+
+renderNinOptions(NIN_SEED);
+loadNinTypes()
+  .then(renderNinOptions)
+  .catch(() => { /* offline eller API utilgjengelig — beholder den innebygde lista */ });
 
 // ── Map ────────────────────────────────────────────────────────────────────────
 
